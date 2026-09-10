@@ -1,0 +1,4 @@
+# Editors and IDEs
+.idea/
+.vscode/**
+.vscode/settings.json
