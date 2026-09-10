@@ -1,3 +1,44 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+out/
+
+# Local runtime data
+data/
+backend/data/
+*.tsbuildinfo
+
+# Coverage
+coverage/
+
+# Turborepo
+.turbo/
+
+# Angular CLI cache
+.angular/
+
+# Test and reporting artifacts
+playwright-report/
+test-results/
+storybook-static/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
 # Editors and IDEs
 .idea/
 .vscode/**
