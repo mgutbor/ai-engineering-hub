@@ -8,6 +8,8 @@ import {
   type KnowledgeItemStatus,
   type RetrievalContext,
   updateKnowledgeItem,
+  askQuestion,
+  type GroundedResponse,
 } from './api';
 import './styles.css';
 
@@ -23,6 +25,9 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [question, setQuestion] = useState('');
+  const [answer, setAnswer] = useState<GroundedResponse | null>(null);
+  const [asking, setAsking] = useState(false);
 
   async function loadItems(nextQuery = query) {
     setLoading(true);
@@ -116,6 +121,23 @@ export function App() {
     await loadItems(query);
   }
 
+  async function submitQuestion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!question.trim()) return;
+    setAsking(true);
+    setError(null);
+    try {
+      setAnswer(await askQuestion(question));
+    } catch (cause) {
+      const failure = cause as Error & { code?: string; context?: RetrievalContext };
+      setAnswer(null);
+      setError(failure.code === 'AI_UNAVAILABLE' ? 'AI generation is unavailable. Search and evidence inspection remain available.' : failure.message);
+      if (failure.context) setContext(failure.context);
+    } finally {
+      setAsking(false);
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="app-header">
@@ -128,6 +150,15 @@ export function App() {
       </header>
 
       {error && <div className="alert" role="alert">{error}</div>}
+
+      <section className="question-panel panel" aria-labelledby="question-heading">
+        <div className="panel-heading"><div><p className="section-kicker">Grounded question</p><h2 id="question-heading">Ask about the corpus</h2></div></div>
+        <form className="question-form" onSubmit={submitQuestion}>
+          <label htmlFor="question">Question</label>
+          <div className="question-row"><input id="question" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Why was a global store avoided?" /><button className="primary-button" type="submit" disabled={asking}>{asking ? 'Retrieving…' : 'Ask'}</button></div>
+        </form>
+        {answer && <div className="answer-block"><div className="answer-condition">{answer.evidenceCondition}</div><p className="answer-text">{answer.answer}</p>{answer.claims.map((claim) => <article className="claim-card" key={claim.id}><div className="claim-header"><strong>{claim.support}</strong><span>{claim.text}</span></div>{claim.reason && <p className="muted">{claim.reason}</p>}{claim.evidence.map((evidence) => <button className="answer-evidence" type="button" key={evidence.evidenceId} onClick={() => void selectItem(evidence.knowledgeItemId)}><span>Evidence {evidence.evidenceId}</span><p>{evidence.fragment}</p><small>{evidence.knowledgeItemTitle} · revision {evidence.revision} · {evidence.status} · {evidence.provenance}</small></button>)}</article>)}</div>}
+      </section>
 
       <div className="workspace">
         <section className="panel list-panel" aria-labelledby="knowledge-heading">

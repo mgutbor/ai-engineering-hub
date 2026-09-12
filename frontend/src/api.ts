@@ -46,6 +46,45 @@ interface ItemResponse {
 interface ErrorResponse {
   error: string;
   message: string;
+  context?: RetrievalContext;
+}
+
+export interface Evidence {
+  evidenceId: string;
+  fragment: string;
+  knowledgeItemId: string;
+  knowledgeItemTitle: string;
+  revision: number;
+  status: KnowledgeItemStatus;
+  provenance: KnowledgeItemProvenance;
+  sourceReference: string | null;
+  paragraphIndex: number;
+  startOffset: number;
+  endOffset: number;
+}
+
+export type ClaimSupport = 'SUPPORTED' | 'INFERRED' | 'INSUFFICIENT';
+export type EvidenceCondition = 'CLEAR' | 'CONTEXTUAL_DIVERGENCE';
+
+export interface GroundedClaim {
+  id: string;
+  text: string;
+  support: ClaimSupport;
+  evidence: Evidence[];
+  reason?: string;
+}
+
+export interface GroundedResponse {
+  answer: string;
+  claims: GroundedClaim[];
+  evidenceCondition: EvidenceCondition;
+  contextId: string;
+}
+
+export interface AskFailure {
+  error: string;
+  message: string;
+  context?: RetrievalContext;
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -53,12 +92,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers: { 'content-type': 'application/json' },
     ...options,
   });
+  const body = response.status === 204 ? undefined : await response.json();
   if (!response.ok) {
-    const error = (await response.json()) as ErrorResponse;
-    throw new Error(error.message);
+    const error = body as ErrorResponse;
+    const failure = new Error(error.message) as Error & { code?: string; context?: RetrievalContext };
+    failure.code = error.error;
+    failure.context = error.context;
+    throw failure;
   }
-  if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
+  return body as T;
 }
 
 export function listKnowledgeItems(query = ''): Promise<ItemsResponse> {
@@ -80,4 +122,8 @@ export function updateKnowledgeItem(id: string, input: { revision: number; title
 
 export function deleteKnowledgeItem(id: string, revision: number): Promise<void> {
   return request<void>(`/knowledge-items/${encodeURIComponent(id)}?revision=${revision}`, { method: 'DELETE' });
+}
+
+export function askQuestion(question: string): Promise<GroundedResponse> {
+  return request<GroundedResponse>('/ask', { method: 'POST', body: JSON.stringify({ question }) });
 }

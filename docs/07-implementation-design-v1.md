@@ -4,7 +4,7 @@
 
 **Proyecto:** Personal Technical Knowledge & Decision Navigator  
 **Versión:** Implementation Design v1  
-**Estado:** Slice A implementado; Slice B pendiente  
+**Estado:** Slice A y Slice B implementados y verificados
 **Product Contract:** `docs/01-product-contract.md`  
 **Architecture Decision:** `docs/02-architecture-decision-v1.md`  
 **AI / Grounding Contract:** `docs/03-ai-grounding-contract.md`  
@@ -22,9 +22,9 @@ No contiene:
 - schema SQL detallado;
 - componentes concretos;
 - configuración de infraestructura;
-- proveedor o modelo de IA concreto.
+- configuración operativa del proveedor o despliegue;
 
-Slice A no instala ni implementa ninguna integración de IA; los contratos de Slice B permanecen documentados únicamente como boundaries futuras.
+Slice B añade una única integración concreta de grounded synthesis documentada en `docs/adr/002-slice-b-ai-adapter.md`. No se introduce una plataforma genérica de IA.
 
 ---
 
@@ -795,13 +795,16 @@ La aplicación solo la presenta automáticamente como `SUPPORTED` si:
 - los fragmentos pertenecen al contexto;
 - la revisión es vigente;
 - el usuario puede inspeccionarlos;
-- existe correspondencia textual directa e inspeccionable bajo la regla conservadora de v1.
+- existe una `evidenceQuote` verificable dentro del fragmento;
+- la claim es un restatement `deletion-only` conservador de la quote.
 
-La política conservadora evita afirmar que una paráfrasis ha sido demostrada determinísticamente. Una paráfrasis, síntesis o generalización que no pueda pasar esta comprobación se presenta como `INFERRED` o `INSUFFICIENT`, nunca como `SUPPORTED` solo porque la IA lo proponga.
+La política conservadora no acepta una claim por la mera clasificación de la IA. Una claim puede eliminar material de la quote conservando el orden, pero no puede añadir, cambiar o reordenar tokens ni eliminar operadores protegidos de la proposición que conserva. La comprobación no demuestra entailment semántico completo.
 
 ### INFERRED
 
-Se presenta como `INFERRED` cuando las referencias son válidas y la claim añade una interpretación o síntesis no literal. Las evidencias base deben mostrarse.
+Se presenta como `INFERRED` cuando las referencias son válidas y la claim no puede demostrarse mediante el restatement `deletion-only` conservador, por lo que añade una interpretación, síntesis o paráfrasis no demostrable por la regla textual. Las evidencias base deben mostrarse.
+
+Una claim que falla la regla con evidencia válida se degrada a `INFERRED`; una claim sin evidencia válida queda `INSUFFICIENT`.
 
 ### INSUFFICIENT
 
@@ -879,12 +882,21 @@ GroundedResponse
 ### Claim support
 
 - `SUPPORTED` requiere al menos una referencia válida;
+- todas las referencias deben pertenecer al `RetrievalContext`, ser actuales e inspeccionables;
+- `SUPPORTED` requiere una `evidenceQuote` no vacía que sea una subcadena exacta del fragmento citado;
+- la claim debe ser un restatement `deletion-only` de la quote: puede eliminar tokens conservando orden, pero no añadir, cambiar o reordenar tokens;
+- no se pueden eliminar tokens protegidos que cambien negación, cuantificación, modalidad o alcance (`not`, `no`, `never`, `only`, `always`, `all`, `every`, `each`, `most`, `some`, `may`, `can`, `should`, `must`, `required`, `optional`, `for`, `within`, `inside`, `on`, `in`, `between`, `among`, `across` y equivalentes documentados en español);
+- una quote parcial tampoco puede omitir operadores protegidos del fragmento completo en las frases que intersecta;
+- se pueden eliminar frases completas de la quote; si la claim conserva tokens de una frase, debe conservar también sus tokens protegidos;
 - una referencia válida no basta si la claim sobreinterpreta el fragmento;
-- la política automática de v1 solo acepta correspondencia textual directa para `SUPPORTED`;
-- `INFERRED` requiere evidencias válidas de todas las premisas declaradas;
+- `INFERRED` requiere evidencias válidas de las premisas o del contexto que se muestra;
 - `INSUFFICIENT` no puede llevar una presentación de soporte directo;
+- si una claim propuesta como `SUPPORTED` tiene evidencia válida pero falla `deletion-only`, se degrada a `INFERRED` y conserva la evidencia;
+- si una claim propuesta como `SUPPORTED` no tiene evidencia válida, queda `INSUFFICIENT`;
 - si la IA propone una referencia inexistente, la claim afectada no puede ser `SUPPORTED`;
-- si existe el fragmento pero no soporta la claim, la claim se degrada a `INFERRED` solo si la derivación es explícita; en otro caso, `INSUFFICIENT`.
+- si existe el fragmento pero no soporta la claim, no se acepta como `SUPPORTED`.
+
+La validación determinista garantiza trazabilidad y correspondencia textual conservadora; no demuestra entailment semántico completo ni decide por sí sola que una paráfrasis libre conserve todo el significado.
 
 ## 6.3 Qué valida y qué no valida
 
@@ -910,7 +922,9 @@ GroundedResponse
 - si dos fuentes forman una divergencia contextual;
 - si una respuesta es útil para el usuario.
 
-La aplicación no presenta estas evaluaciones probabilísticas como pruebas de verdad objetiva.
+La aplicación no presenta estas evaluaciones probabilísticas como pruebas de verdad objetiva. La comprobación `deletion-only` únicamente garantiza que la claim conserva una subsecuencia ordenada y conservadora de una quote verificable. No prueba el entailment semántico completo, especialmente para causalidad, aplicabilidad, temporalidad o relaciones que no estén expresadas mediante los tokens comparados.
+
+Una claim que falla `deletion-only` no puede ser `SUPPORTED`; con referencias válidas se degrada a `INFERRED`, y sin referencias válidas queda `INSUFFICIENT`.
 
 ## 6.4 Referencia inexistente
 
@@ -924,12 +938,20 @@ Si el draft contiene un `evidenceId` que no está en el RetrievalContext:
 
 ## 6.5 Evidencia existente pero no suficiente
 
-Si el fragmento existe, pero no sostiene la claim:
+Si el fragmento existe y la referencia es válida, pero la claim no pasa la correspondencia textual `deletion-only`:
 
 - no se acepta como `SUPPORTED`;
-- si el draft muestra una derivación válida con evidencias adicionales, se presenta `INFERRED`;
-- si no existe esa derivación, se presenta `INSUFFICIENT`;
-- la referencia puede seguir mostrándose como contexto relacionado, pero no como soporte directo.
+- una propuesta `SUPPORTED` se degrada a `INFERRED`;
+- la evidencia válida se conserva visible como base de la inferencia;
+- la claim debe presentarse como interpretación, no como cita literal.
+
+Si la evidencia o la referencia no son válidas:
+
+- la claim se presenta como `INSUFFICIENT`;
+- no se conserva la referencia como soporte aceptado;
+- no se sustituye silenciosamente por otra evidencia.
+
+La regla no intenta construir un NLP completo. Es una comprobación determinista y deliberadamente conservadora: solo permite eliminar material de la quote, preservando el orden y los operadores protegidos de negación, cuantificación, modalidad y alcance.
 
 ## 6.6 Contextual divergence
 
@@ -1626,7 +1648,7 @@ React complementa el portfolio existente y permite hacer explícita la separaci�
 - sin acceso del modelo a Persistence;
 - sin multi-provider ni model router.
 
-El proveedor y modelo concreto siguen pendientes porque no alteran los contratos internos y requieren una decisión separada sobre privacidad, coste, disponibilidad y retención.
+Slice B utiliza el adaptador Gemini directo mediante `fetch`, configurado con `GEMINI_API_KEY` y el modelo `GEMINI_MODEL` opcional, cuyo valor por defecto es `gemini-3.5-flash-lite`. Si no existe la clave, el runtime utiliza un adaptador explícito de disponibilidad fallida y devuelve `AI_UNAVAILABLE`; no genera respuestas ficticias.
 
 ---
 
@@ -1660,9 +1682,9 @@ La Presentation debe mostrar status, provenance, clasificación y límites. La r
 
 El límite inicial de fragmentos y la ausencia de historial reducen coste y complejidad. No se introduce persistencia de respuestas para compensar esta limitación.
 
-## R8 — Proveedor pendiente
+## R8 — Configuración operativa del proveedor
 
-La integración real no puede cerrarse hasta decidir proveedor, retención y configuración de privacidad. Los contratos se implementan primero contra un generador controlado.
+La integración concreta de Slice B está limitada al adaptador Gemini documentado en `docs/adr/002-slice-b-ai-adapter.md`, usando `gemini-3.5-flash-lite` como modelo MVP. Permanecen fuera de este slice la retención efectiva del proveedor, la región, los secretos de despliegue y la operación remota; sin credenciales, el sistema falla de forma explícita con `AI_UNAVAILABLE`.
 
 ---
 
@@ -1670,8 +1692,7 @@ La integración real no puede cerrarse hasta decidir proveedor, retención y con
 
 Estas decisiones permanecen pendientes y no bloquean el diseño de las fronteras:
 
-- proveedor de IA;
-- modelo de IA;
+- modelo alternativo y parámetros operativos distintos del modelo MVP `gemini-3.5-flash-lite`;
 - política de retención del proveedor;
 - configuración de secretos;
 - despliegue local o remoto;
@@ -1687,7 +1708,7 @@ Estas decisiones permanecen pendientes y no bloquean el diseño de las fronteras
 - colaboración;
 - observabilidad de contenido personal.
 
-No se tomarán estas decisiones durante la implementación del Slice A salvo que una incompatibilidad real obligue a documentar `Decision under pressure`.
+La integración concreta de Slice B está registrada en `docs/adr/002-slice-b-ai-adapter.md`; las decisiones operativas pendientes no amplían el alcance del producto.
 
 ---
 
@@ -1710,7 +1731,7 @@ El diseño se considera completo porque define:
 - modelo de errores;
 - estrategia de testing implementable;
 - plan de privacidad;
-- Slice A y Slice B;
+- Slice A y Slice B, incluido `/ask` y validación determinista de drafts;
 - riesgos;
 - decisiones que permanecen pendientes.
 

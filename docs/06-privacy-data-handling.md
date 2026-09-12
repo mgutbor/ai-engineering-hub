@@ -4,7 +4,7 @@
 
 Documentar únicamente las decisiones de privacidad necesarias para el MDP.
 
-**Traza:** `docs/01-product-contract.md` → `docs/02-architecture-decision-v1.md`
+**Traza:** `docs/01-product-contract.md` → `docs/02-architecture-decision-v1.md` → `docs/07-implementation-design-v1.md` → `docs/adr/002-slice-b-ai-adapter.md`
 
 No es una política de compliance enterprise.
 
@@ -50,7 +50,7 @@ Debe permanecer bajo control del producto:
 - separación entre evaluation corpus y user corpus;
 - decisiones de eliminación e invalidación.
 
-La tecnología concreta de despliegue local o remoto queda pendiente y no se decide en este documento.
+Slice B utiliza la API de Google Gemini directamente mediante `fetch`, con el adaptador y modelo documentados en `docs/adr/002-slice-b-ai-adapter.md`. La configuración concreta de despliegue queda fuera de este documento.
 
 ---
 
@@ -107,14 +107,20 @@ Las evaluaciones deben poder ejecutarse de forma controlada y separada.
 
 ---
 
-## 8. Pending decisions
+## 8. Implemented and pending decisions
 
-Quedan pendientes:
+Implementado para Slice B:
 
-- proveedor concreto;
-- región y retención del proveedor;
+- solo se envían la pregunta y los fragmentos seleccionados;
+- el endpoint no envía el corpus completo;
+- no se registran prompts, respuestas ni fragmentos por defecto;
+- no se persisten outputs de IA.
+
+Pendiente u operativo fuera de este slice:
+
+- configuración concreta de secretos;
+- región y retención efectiva del proveedor;
 - configuración exacta de almacenamiento local o remoto;
-- estrategia de secretos;
 - controles de acceso futuros.
 
-Estas decisiones no son necesarias para fijar la regla de minimización: enviar solo el contexto necesario y no persistir outputs por defecto.
+La regla vigente es minimizar el contexto enviado y no persistir outputs por defecto.

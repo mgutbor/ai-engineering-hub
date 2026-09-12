@@ -1,39 +1,23 @@
-import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
 import { InvalidKnowledgeItemError } from '../domain/knowledge-item.js';
 import { KnowledgeItemNotFoundError, PersistenceConsistencyError, RevisionConflictError } from '../domain/errors.js';
 import type { KnowledgeItemService } from '../application/knowledge-item-service.js';
+import type { AskQuestionService } from '../application/ask-question-service.js';
 import type { SqliteRetrievalService } from '../retrieval/sqlite-retrieval-service.js';
 import type { KnowledgeItemRepository } from '../persistence/knowledge-item-repository.js';
 
-interface IdParams {
-  id: string;
-}
-
-interface SearchQuerystring {
-  q?: string;
-  limit?: string;
-}
-
-interface CreateBody {
-  title?: unknown;
-  content?: unknown;
-  status?: unknown;
-  sourceReference?: unknown;
-}
-
-interface UpdateBody extends CreateBody {
-  revision?: unknown;
-}
-
-interface ErrorResponse {
-  error: string;
-  message: string;
-}
+interface IdParams { id: string; }
+interface SearchQuerystring { q?: string; limit?: string; }
+interface CreateBody { title?: unknown; content?: unknown; status?: unknown; sourceReference?: unknown; }
+interface UpdateBody extends CreateBody { revision?: unknown; }
+interface AskBody { question?: unknown; }
+interface ErrorResponse { error: string; message: string; context?: unknown; }
 
 export interface AppDependencies {
   readonly knowledgeItems: KnowledgeItemService;
   readonly repository: KnowledgeItemRepository;
   readonly retrieval: SqliteRetrievalService;
+  readonly askQuestion?: AskQuestionService;
 }
 
 export function buildApp(dependencies: AppDependencies): FastifyInstance {
@@ -53,9 +37,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.get<{ Querystring: SearchQuerystring }>('/knowledge-items', async (request) => {
     const limit = parseLimit(request.query.limit);
     const query = request.query.q?.trim() ?? '';
-    if (query.length === 0) {
-      return { items: dependencies.knowledgeItems.list() };
-    }
+    if (query.length === 0) return { items: dependencies.knowledgeItems.list() };
     const context = dependencies.retrieval.search({ query, corpus: 'user', limit });
     const items = context.fragments
       .map((fragment) => dependencies.repository.getById(fragment.knowledgeItemId))
@@ -63,41 +45,37 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     return { items, context };
   });
 
-  app.get<{ Params: IdParams }>('/knowledge-items/:id', async (request) => {
-    return { item: dependencies.knowledgeItems.get(request.params.id) };
-  });
+  app.get<{ Params: IdParams }>('/knowledge-items/:id', async (request) => ({ item: dependencies.knowledgeItems.get(request.params.id) }));
 
   app.patch<{ Params: IdParams; Body: UpdateBody }>('/knowledge-items/:id', async (request) => {
     const input = parseUpdateBody(request.body);
-    const item = dependencies.knowledgeItems.update(request.params.id, input.revision, input.changes);
-    return { item };
+    return { item: dependencies.knowledgeItems.update(request.params.id, input.revision, input.changes) };
   });
 
   app.delete<{ Params: IdParams; Querystring: { revision?: string } }>('/knowledge-items/:id', async (request, reply) => {
-    const revision = parseRevision(request.query.revision);
-    dependencies.knowledgeItems.delete(request.params.id, revision);
+    dependencies.knowledgeItems.delete(request.params.id, parseRevision(request.query.revision));
     return reply.code(204).send();
+  });
+
+  app.post<{ Body: AskBody }>('/ask', async (request, reply) => {
+    if (!dependencies.askQuestion) {
+      return reply.code(503).send({ error: 'AI_UNAVAILABLE', message: 'No AI provider is configured.' });
+    }
+    const question = parseQuestion(request.body);
+    const result = await dependencies.askQuestion.ask(question, 'user');
+    if (result.ok) return reply.code(200).send(result.response);
+    const statusCode = result.code === 'AI_UNAVAILABLE' ? 503 : result.code === 'NO_RELEVANT_EVIDENCE' ? 422 : 502;
+    return reply.code(statusCode).send({ error: result.code, message: result.message, context: result.context });
   });
 
   return app;
 }
 
 function parseCreateBody(body: CreateBody): { title: string; content: string; status?: 'ACTIVE' | 'SUPERSEDED' | 'ARCHIVED'; sourceReference?: string | null } {
-  if (typeof body.title !== 'string' || typeof body.content !== 'string') {
-    throw new InvalidKnowledgeItemError('title and content are required strings');
-  }
-  if (body.status !== undefined && body.status !== 'ACTIVE' && body.status !== 'SUPERSEDED' && body.status !== 'ARCHIVED') {
-    throw new InvalidKnowledgeItemError('status is invalid');
-  }
-  if (body.sourceReference !== undefined && body.sourceReference !== null && typeof body.sourceReference !== 'string') {
-    throw new InvalidKnowledgeItemError('sourceReference must be a string or null');
-  }
-  return {
-    title: body.title,
-    content: body.content,
-    status: body.status as 'ACTIVE' | 'SUPERSEDED' | 'ARCHIVED' | undefined,
-    sourceReference: body.sourceReference as string | null | undefined,
-  };
+  if (typeof body.title !== 'string' || typeof body.content !== 'string') throw new InvalidKnowledgeItemError('title and content are required strings');
+  if (body.status !== undefined && body.status !== 'ACTIVE' && body.status !== 'SUPERSEDED' && body.status !== 'ARCHIVED') throw new InvalidKnowledgeItemError('status is invalid');
+  if (body.sourceReference !== undefined && body.sourceReference !== null && typeof body.sourceReference !== 'string') throw new InvalidKnowledgeItemError('sourceReference must be a string or null');
+  return { title: body.title, content: body.content, status: body.status as 'ACTIVE' | 'SUPERSEDED' | 'ARCHIVED' | undefined, sourceReference: body.sourceReference as string | null | undefined };
 }
 
 function parseUpdateBody(body: UpdateBody): { revision: number; changes: { title?: string; content?: string; status?: 'ACTIVE' | 'SUPERSEDED' | 'ARCHIVED'; sourceReference?: string | null } } {
@@ -114,6 +92,11 @@ function parseUpdateBody(body: UpdateBody): { revision: number; changes: { title
     changes.sourceReference = body.sourceReference;
   }
   return { revision, changes };
+}
+
+function parseQuestion(body: AskBody): string {
+  if (typeof body.question !== 'string' || body.question.trim().length === 0) throw new InvalidKnowledgeItemError('question must be a non-empty string');
+  return body.question;
 }
 
 function requireString(value: unknown, field: string): string {
