@@ -1,156 +1,189 @@
 # Technical Decision Navigator
 
-> **Recover technical decisions with verifiable evidence instead of trusting AI-generated answers.**
+**Recupera decisiones técnicas con evidencia verificable en lugar de confiar en respuestas generadas por IA.**
 
-Technical decisions are easy to lose across ADRs, retrospectives, performance notes and implementation documents. A generated answer can sound convincing even when the corpus does not support the claim. Recovering a decision therefore requires more than retrieving related text: the evidence behind each claim must remain inspectable.
+Las decisiones técnicas son fáciles de perder entre ADRs, retrospectivas, notas de rendimiento y documentos de implementación. Una respuesta generada por IA puede parecer convincente incluso cuando el corpus no respalda la afirmación. Recuperar una decisión requiere, por tanto, algo más que encontrar texto relacionado: la evidencia que sustenta cada afirmación debe poder inspeccionarse.
 
-## Thesis
+## Tesis
 
-> **The system does not ask whether the AI sounds correct. It asks whether the corpus can support the claim.**
+> **El sistema no pregunta si la respuesta de la IA parece correcta. Pregunta si el corpus puede respaldar la afirmación.**
 
-This project demonstrates **deterministic validation around probabilistic AI**.
+Este proyecto explora cómo construir una validación determinista alrededor de una IA probabilística.
 
-## Why this is not a generic AI chatbot
+## Por qué no es un chatbot genérico
 
-Technical Decision Navigator is not a chatbot, a generic RAG demo or a knowledge base with chat. The AI is only one step in a wider pipeline:
+**Technical Decision Navigator** no es un chatbot, una demo genérica de RAG ni una base de conocimiento con chat.
 
-- text retrieval is deterministic and uses SQLite FTS5;
-- the application builds a limited `RetrievalContext`;
-- the AI proposes a structured draft with claims and evidence IDs;
-- deterministic validation checks the draft before presentation;
-- every accepted evidence reference can be inspected back to its Knowledge Item;
-- when the corpus does not provide relevant evidence, the system abstains instead of completing the answer with external knowledge.
+La IA es solamente una etapa dentro de un pipeline más amplio:
 
-The AI proposes a response. It does not decide by itself what the corpus supports.
+- la recuperación de texto es determinista y utiliza SQLite FTS5;
+- la aplicación construye un `RetrievalContext` limitado;
+- la IA propone un borrador estructurado con afirmaciones y referencias de evidencia;
+- la validación determinista comprueba el borrador antes de presentarlo;
+- cada referencia de evidencia aceptada puede inspeccionarse hasta su `Knowledge Item`;
+- cuando el corpus no proporciona evidencia relevante, el sistema se abstiene en lugar de completar la respuesta utilizando conocimiento externo.
 
-## Architecture / flow
+**La IA propone una respuesta. No decide por sí sola qué está respaldado por el corpus.**
+
+## Arquitectura / flujo
 
 ```text
-Question
+Pregunta
    ↓
-Deterministic text retrieval
+Recuperación determinista de texto
    ↓
 RetrievalContext
    ↓
-Probabilistic AI synthesis
+Síntesis probabilística con IA
    ↓
-Deterministic grounding validation
+Validación determinista del grounding
    ↓
 GroundedResponse
    ↓
-Claims → Evidence → Knowledge Item
+Afirmaciones → Evidencia → Knowledge Item
 ```
 
-A `GroundedResponse` is the result after validation, not the raw provider output. Deterministic validation checks evidence identity, Knowledge Item ownership, retrieval-context membership, revision freshness, inspectability and a conservative direct-text support rule. It does not prove semantic truth or complete entailment.
+`GroundedResponse` es el resultado obtenido después de la validación, no la respuesta original del proveedor de IA.
 
-## Claim states
+La validación determinista comprueba:
+
+- identidad de la evidencia;
+- pertenencia al `Knowledge Item` correspondiente;
+- pertenencia al `RetrievalContext`;
+- vigencia de la revisión;
+- inspeccionabilidad de la evidencia;
+- una regla conservadora de correspondencia textual directa.
+
+No demuestra la verdad semántica de una afirmación ni proporciona una garantía completa de entailment semántico.
+
+## Estados de las afirmaciones
 
 ### `SUPPORTED`
 
-The evidence allows a sufficiently direct correspondence under the system's conservative rules. The claim must point to valid, inspectable evidence from the current retrieval context.
+La evidencia permite una correspondencia suficientemente directa de acuerdo con las reglas conservadoras del sistema.
+
+La afirmación debe apuntar a evidencia válida e inspeccionable perteneciente al contexto de recuperación actual.
 
 ### `INFERRED`
 
-The evidence is valid, but the claim adds interpretation or does not pass the conservative direct-text correspondence rule.
+La evidencia es válida, pero la afirmación incorpora una interpretación o no supera la regla conservadora de correspondencia textual directa.
 
-**`INFERRED` does not mean incorrect.** It means the system is distinguishing a derivation from a directly documented statement.
+**`INFERRED` no significa incorrecto.**
+
+Significa que el sistema distingue entre una derivación basada en evidencia y una afirmación documentada directamente.
 
 ### `INSUFFICIENT`
 
-The corpus does not provide enough relevant evidence. The system abstains instead of presenting an unsupported factual answer.
+El corpus no proporciona suficiente evidencia relevante.
 
-## Portfolio demo
+El sistema se abstiene en lugar de presentar como hecho una respuesta que no puede respaldar.
 
-### Example A — evidence exists
+## Demo de portfolio
 
-Question:
+La demo utiliza dos preguntas que muestran comportamientos deliberadamente diferentes.
+
+### Ejemplo A — existe evidencia
+
+**Pregunta:**
+
+> Why was a global store avoided for all UI state?
+
+La demo real produce:
 
 ```text
-Why was a global store avoided for all UI state?
-```
-
-The real demo is expected to produce:
-
-```text
-Answer
+Respuesta
    ↓
-Claim: INFERRED
+Afirmación: INFERRED
    ↓
-Evidence
+Evidencia
    ↓
 Knowledge Item
 ```
 
-The evidence is inspectable. The claim is reasonable, but it introduces an interpretive relationship that does not pass the conservative deletion-only support check. This is an intentional and correct result, not a validation failure.
+La evidencia puede inspeccionarse.
 
-### Example B — evidence does not exist
+La afirmación es razonable, pero introduce una relación interpretativa que no supera la comprobación conservadora basada en eliminación de texto.
 
-Question:
+Este es un resultado **intencionado y correcto**, no un fallo de validación.
 
-```text
-Which database was selected for the platform?
-```
+### Ejemplo B — no existe evidencia
 
-The result is:
+**Pregunta:**
+
+> Which database was selected for the platform?
+
+Resultado:
 
 ```text
 INSUFFICIENT
 ```
 
-There is no relevant evidence, so the system abstains. It does not invent a database, does not show false evidence and does not invoke the AI when retrieval finds no relevant fragments.
+No existe evidencia relevante en el corpus, por lo que el sistema se abstiene.
 
-These two cases are the main demonstration: evidence can support an inspectable claim without making it a literal statement, and lack of evidence is a valid result.
+No inventa una base de datos, no muestra evidencia falsa y no invoca la IA cuando la recuperación no encuentra fragmentos relevantes.
 
-## Reproducible demo
+Estos dos casos constituyen la demostración principal del proyecto:
 
-### Requirements
+> **La existencia de evidencia no implica automáticamente que una afirmación sea una afirmación documentada directamente; y la ausencia de evidencia es un resultado válido.**
+
+## Demo reproducible
+
+### Requisitos
 
 - Node.js 20+
 - npm 10+
 
-### Install
+### Instalación
 
 ```bash
 npm install
 ```
 
-### Configure Groq
+### Configurar Groq
 
-Groq is the primary provider used by the current runtime. Gemini remains available as a fallback.
+Groq es el proveedor principal utilizado por el runtime actual. Gemini permanece disponible como fallback.
 
 ```bash
 export GROQ_API_KEY="..."
-export GROQ_MODEL="openai/gpt-oss-20b" # optional
+export GROQ_MODEL="openai/gpt-oss-20b" # opcional
 ```
 
-If `GROQ_API_KEY` is not set and `GEMINI_API_KEY` is set, the backend uses Gemini. If neither key is available, CRUD and retrieval remain usable and grounded generation returns `AI_UNAVAILABLE` when evidence exists.
+Si `GROQ_API_KEY` no está configurada y `GEMINI_API_KEY` sí lo está, el backend utiliza Gemini.
 
-### Start
+Si no hay ninguna clave configurada, las operaciones CRUD y la recuperación siguen disponibles. Cuando existe evidencia pero no hay proveedor de IA disponible, la generación devuelve `AI_UNAVAILABLE`.
+
+### Arranque
 
 ```bash
 npm run dev
 ```
 
-- frontend: `http://localhost:5173`
-- backend: `http://localhost:3000`
+- Frontend: http://localhost:5173
+- Backend: http://localhost:3000
 
-The backend creates a local SQLite database under `data/` on first start.
+El backend crea una base de datos SQLite local dentro de `data/` durante el primer arranque.
 
-### Create the demo corpus
+### Crear el corpus de demostración
 
-The evaluation corpus is separate from the user corpus. The normal UI starts with an empty user corpus, so a fresh clone initially shows `Knowledge Items 0`.
+El corpus de evaluación está separado del corpus de usuario.
 
-Create these two Knowledge Items from **New Knowledge Item** in the UI.
+La interfaz normal comienza con un corpus de usuario vacío, por lo que un clone limpio muestra inicialmente:
+
+```text
+Knowledge Items 0
+```
+
+Crea los siguientes dos `Knowledge Items` desde **New Knowledge Item** en la interfaz.
 
 #### Knowledge Item 1
 
-Title:
+**Title:**
 
 ```text
 UI state ownership decision
 ```
 
-Content:
+**Content:**
 
 ```text
 Feature-owned UI state remained local by default. Shared state was introduced only when multiple features needed to coordinate. A global store for all UI state was avoided because most state was local and the additional indirection made ownership harder to understand.
@@ -158,55 +191,69 @@ Feature-owned UI state remained local by default. Shared state was introduced on
 
 #### Knowledge Item 2
 
-Title:
+**Title:**
 
 ```text
 Shared state decision
 ```
 
-Content:
+**Content:**
 
 ```text
 Keep feature-owned state local by default. Introduce shared state only when there is a demonstrated cross-feature coordination problem.
 ```
 
-Then run the two questions from the portfolio demo above. Select the evidence shown under the claim to inspect the source Knowledge Item, revision, status, provenance and optional source reference.
+A continuación, ejecuta las dos preguntas descritas en la demo de portfolio.
 
-## Testing and verification
+Selecciona la evidencia mostrada bajo la afirmación para inspeccionar el `Knowledge Item` de origen, su revisión, estado, procedencia y, cuando exista, la referencia externa asociada.
 
-The repository separates deterministic application checks from probabilistic provider evaluation.
+## Testing y verificación
 
-### Deterministic tests
+El repositorio separa las comprobaciones deterministas de la evaluación probabilística de los proveedores de IA.
 
-They cover:
+### Tests deterministas
 
-- Knowledge Item CRUD and revisions;
-- status and provenance propagation;
-- SQLite FTS5 retrieval;
-- evidence references and retrieval-context membership;
-- revision freshness and stale-context rejection;
-- conservative deletion-only support;
-- protected negation, quantifier, modality and scope tokens;
-- degradation to `INFERRED`;
-- degradation to `INSUFFICIENT`;
-- malformed AI responses;
-- provider-unavailable paths;
-- abstention before AI invocation when retrieval finds no relevant evidence.
+Cubren:
 
-### AI adapter tests
+- CRUD y revisiones de `Knowledge Item`;
+- propagación de estado y procedencia;
+- recuperación mediante SQLite FTS5;
+- referencias de evidencia y pertenencia al `RetrievalContext`;
+- vigencia de revisiones y rechazo de contextos obsoletos;
+- soporte conservador basado en eliminación de texto;
+- protección de tokens de negación, cuantificación, modalidad y alcance;
+- degradación a `INFERRED`;
+- degradación a `INSUFFICIENT`;
+- respuestas de IA malformadas;
+- rutas de proveedor no disponible;
+- abstención antes de invocar la IA cuando la recuperación no encuentra evidencia relevante.
 
-Groq and Gemini adapters are contract-tested with controlled provider responses. These tests verify request boundaries, structured output handling, provider errors, malformed responses and secret-safe diagnostics without calling the real providers.
+### Tests de los adapters de IA
 
-### Real-provider smoke tests
+Los adapters de Groq y Gemini están cubiertos mediante tests de contrato con respuestas controladas.
+
+Estos tests verifican:
+
+- límites de la petición;
+- tratamiento de respuestas estructuradas;
+- errores del proveedor;
+- respuestas malformadas;
+- diagnósticos seguros que no exponen secretos.
+
+No realizan llamadas a los proveedores reales.
+
+### Smoke tests con proveedores reales
 
 ```bash
 npm run smoke:groq --workspace backend
 npm run smoke:gemini --workspace backend
 ```
 
-These are smoke tests against real providers. They are not deterministic tests: their output depends on network conditions, quotas, model behavior and provider availability.
+Son smoke tests contra proveedores reales.
 
-The normal quality checks are:
+No son tests deterministas: su resultado depende de las condiciones de red, cuotas, comportamiento del modelo y disponibilidad del proveedor.
+
+### Comprobaciones habituales
 
 ```bash
 npm test
@@ -215,30 +262,32 @@ npm run lint
 npm run build
 ```
 
-## Known limitations
+## Limitaciones conocidas
 
-- deterministic validation does not provide complete semantic entailment;
-- evidence provenance is not proof of objective truth;
-- the project does not guarantee stable LLM response quality;
-- there is no formal browser end-to-end suite;
-- real-provider output is probabilistic;
-- smoke tests depend on the network, selected model and provider;
-- the project makes no performance or scalability claim;
-- text retrieval is intentionally not semantic search.
+- la validación determinista no proporciona entailment semántico completo;
+- la procedencia de la evidencia no demuestra la verdad objetiva de una afirmación;
+- el proyecto no garantiza una calidad estable de las respuestas del LLM;
+- no existe una suite formal de browser end-to-end;
+- las respuestas de proveedores reales son probabilísticas;
+- los smoke tests dependen de la red, el modelo seleccionado y la disponibilidad del proveedor;
+- el proyecto no realiza afirmaciones de rendimiento o escalabilidad;
+- la recuperación es deliberadamente textual y no constituye semantic search.
 
-## Deliberate non-goals
+## No-objetivos deliberados
 
-The MVP does not introduce:
+El MVP no incorpora:
 
-- embeddings, vector databases or semantic search;
-- agents, conversations, memory or a knowledge graph;
-- automatic contradiction resolution or confidence scoring;
-- collaboration, bulk import or automatic Knowledge Item mutation;
-- a generic multi-provider architecture, provider registry, dynamic routing or provider management layer.
+- embeddings, bases de datos vectoriales ni semantic search;
+- agentes, conversaciones, memoria ni knowledge graph;
+- resolución automática de contradicciones ni confidence scoring;
+- colaboración, importación masiva ni modificación automática de `Knowledge Items`;
+- una arquitectura genérica multi-provider, un provider registry, routing dinámico o una capa de gestión de proveedores.
 
-Concrete Groq and Gemini adapters exist to exercise the grounded-synthesis boundary. They do not turn this project into a provider platform.
+Existen adapters concretos para Groq y Gemini con el objetivo de ejercitar el límite de síntesis fundamentada con IA.
 
-## Documentation
+Esto no convierte el proyecto en una plataforma de proveedores.
+
+## Documentación
 
 - [Product Contract](docs/01-product-contract.md)
 - [Architecture Decision](docs/02-architecture-decision-v1.md)
