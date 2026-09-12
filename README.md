@@ -56,6 +56,40 @@ La validación determinista comprueba:
 
 No demuestra la verdad semántica de una afirmación ni proporciona una garantía completa de entailment semántico.
 
+## Demo
+
+### 1. Vista principal
+
+La vista principal permite consultar el corpus de conocimiento y realizar preguntas sobre las decisiones técnicas documentadas.
+
+![Technical Decision Navigator — vista principal](docs/screenshots/01-main-view.png)
+
+### 2. Respuesta con evidencia
+
+Cuando existe evidencia relevante, el sistema genera una respuesta grounded y permite inspeccionar la relación entre la claim y su evidencia.
+
+**Pregunta:**
+
+> Why was a global store avoided for all UI state?
+
+El resultado es `INFERRED` porque la claim contiene una interpretación que no supera la regla conservadora de `SUPPORTED`.
+
+![Respuesta con evidencia](docs/screenshots/02-evidence-backed-answer.png)
+
+### 3. Cuando no existe evidencia
+
+Cuando el corpus no contiene evidencia suficiente, el sistema se abstiene en lugar de generar una respuesta no respaldada.
+
+**Pregunta:**
+
+> Which database was selected for the platform?
+
+Resultado:
+
+`INSUFFICIENT` · `ABSTENTION`
+
+![Evidencia insuficiente](docs/screenshots/03-evidence-is-missing.png)
+
 ## Estados de las afirmaciones
 
 ### `SUPPORTED`
