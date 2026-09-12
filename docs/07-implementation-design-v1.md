@@ -1457,7 +1457,7 @@ Cada caso se evalúa en dos niveles:
 
 | Caso | Expectativa de implementación |
 |---|---|
-| Q1 | KI-01/KI-02; claims directas `SUPPORTED` solo si superan correspondencia directa; no inventar rendimiento |
+| Q1 | KI-01/KI-02; las claims directas pueden ser `SUPPORTED`, mientras que la síntesis interpretativa de la demo es `INFERRED` con evidencia válida; no inventar rendimiento |
 | Q2 | KI-01/KI-03/KI-04; síntesis contextual; no regla universal |
 | Q3 | KI-08/KI-09; hechos directos supported; síntesis general inferred |
 | Q4 | KI-01 a KI-04; principio general `INFERRED` |
@@ -1646,9 +1646,11 @@ React complementa el portfolio existente y permite hacer explícita la separaci�
 - draft no confiable;
 - validación determinista posterior;
 - sin acceso del modelo a Persistence;
-- sin multi-provider ni model router.
+- sin arquitectura genérica multi-provider, provider registry, dynamic routing ni provider management layer.
 
-Slice B utiliza el adaptador Gemini directo mediante `fetch`, configurado con `GEMINI_API_KEY` y el modelo `GEMINI_MODEL` opcional, cuyo valor por defecto es `gemini-3.5-flash-lite`. Si no existe la clave, el runtime utiliza un adaptador explícito de disponibilidad fallida y devuelve `AI_UNAVAILABLE`; no genera respuestas ficticias.
+Slice B utiliza Groq como provider principal mediante `fetch`, configurado con `GROQ_API_KEY` y el modelo `GROQ_MODEL` opcional, cuyo valor por defecto es `openai/gpt-oss-20b`. Si no existe `GROQ_API_KEY` pero sí `GEMINI_API_KEY`, el runtime utiliza el adapter Gemini como fallback, configurado con `GEMINI_MODEL` opcional y `gemini-3.5-flash-lite` por defecto. Si no existe ninguna clave, utiliza un adaptador explícito de disponibilidad fallida y devuelve `AI_UNAVAILABLE`; no genera respuestas ficticias.
+
+Los adapters concretos de Groq y Gemini ejercitan la misma capacidad estrecha de grounded synthesis. No existe una capa genérica de gestión de providers ni routing dinámico.
 
 ---
 
@@ -1684,7 +1686,7 @@ El límite inicial de fragmentos y la ausencia de historial reducen coste y comp
 
 ## R8 — Configuración operativa del proveedor
 
-La integración concreta de Slice B está limitada al adaptador Gemini documentado en `docs/adr/002-slice-b-ai-adapter.md`, usando `gemini-3.5-flash-lite` como modelo MVP. Permanecen fuera de este slice la retención efectiva del proveedor, la región, los secretos de despliegue y la operación remota; sin credenciales, el sistema falla de forma explícita con `AI_UNAVAILABLE`.
+La integración concreta de Slice B utiliza el adapter Groq como provider principal y el adapter Gemini como fallback, ambos documentados en `docs/adr/002-slice-b-ai-adapter.md`. Permanecen fuera de este slice la retención efectiva de los providers, la región, los secretos de despliegue y la operación remota; sin credenciales, el sistema falla de forma explícita con `AI_UNAVAILABLE`.
 
 ---
 
@@ -1692,7 +1694,7 @@ La integración concreta de Slice B está limitada al adaptador Gemini documenta
 
 Estas decisiones permanecen pendientes y no bloquean el diseño de las fronteras:
 
-- modelo alternativo y parámetros operativos distintos del modelo MVP `gemini-3.5-flash-lite`;
+- parámetros operativos distintos de los modelos configurables de Groq y Gemini;
 - política de retención del proveedor;
 - configuración de secretos;
 - despliegue local o remoto;

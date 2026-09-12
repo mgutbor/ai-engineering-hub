@@ -14,7 +14,7 @@ Este documento decide los límites y responsabilidades de la arquitectura. No de
 - endpoints concretos;
 - schema SQL detallado;
 - código;
-- proveedor o modelo de IA;
+- detalles concretos de endpoint, prompt y parámetros operativos;
 - infraestructura de despliegue.
 
 La arquitectura será un **monolito modular pequeño**, con un único flujo de aplicación y fronteras explícitas para persistence, retrieval, generación de IA y validación determinista.
@@ -33,7 +33,7 @@ La arquitectura será un **monolito modular pequeño**, con un único flujo de a
 | La validación determinista se ejecuta antes de presentar la respuesta | Impide aceptar referencias inexistentes o fuera de contexto | Decidida |
 | Las respuestas de IA no se persisten por defecto | No son source of record y no son necesarias para el MDP | Decidida |
 | Frontend y backend comparten TypeScript, pero mantienen responsabilidades separadas | Reduce fricción sin trasladar reglas críticas al cliente | Recomendada |
-| El proveedor/modelo concreto de IA queda pendiente | El Product Contract no exige uno y la decisión depende de privacidad/coste | Pendiente |
+| Groq es el provider principal y Gemini el fallback fijo | Permite validar la misma capacidad de grounded synthesis sin crear una plataforma genérica de providers | Decidida |
 
 ---
 
@@ -224,7 +224,7 @@ La frontera representa una capacidad concreta: **sintetizar una respuesta basada
 
 No se crea una abstracción genérica de plataforma de IA, un registry de modelos ni un `AIProvider` con operaciones hipotéticas.
 
-El adaptador de IA debe poder sustituirse porque está detrás de una capacidad estrecha, no porque se diseñe una plataforma multi-provider.
+Existen adapters concretos para Groq y Gemini porque ambos ejercitan la misma capacidad estrecha. Esto no constituye una plataforma genérica multi-provider: no hay registry, dynamic routing ni provider management layer.
 
 ### 5.4 Resultado esperado de la IA
 
@@ -596,7 +596,7 @@ La representación de estados no justifica una plataforma de estado global ni un
 
 Quedan pendientes, sin inventar una decisión:
 
-- proveedor y modelo de IA;
+- parámetros operativos adicionales de los adapters concretos;
 - prompt exacto;
 - formato serializado exacto del output del modelo;
 - framework HTTP concreto;

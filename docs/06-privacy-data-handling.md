@@ -50,7 +50,7 @@ Debe permanecer bajo control del producto:
 - separación entre evaluation corpus y user corpus;
 - decisiones de eliminación e invalidación.
 
-Slice B utiliza la API de Google Gemini directamente mediante `fetch`, con el adaptador y modelo documentados en `docs/adr/002-slice-b-ai-adapter.md`. La configuración concreta de despliegue queda fuera de este documento.
+Slice B utiliza actualmente Groq como provider principal mediante `fetch`, con Gemini como fallback cuando `GROQ_API_KEY` no está configurada. Los adapters concretos y su configuración están documentados en `docs/adr/002-slice-b-ai-adapter.md`. La configuración concreta de despliegue queda fuera de este documento.
 
 ---
 

@@ -138,13 +138,15 @@ export function App() {
     }
   }
 
+  const isAbstention = answer?.claims.some((claim) => claim.support === 'INSUFFICIENT') ?? false;
+
   return (
     <main className="app-shell">
       <header className="app-header">
         <div>
-          <p className="eyebrow">Slice A · Product utility without AI</p>
+          <p className="eyebrow">Evidence-first technical decisions</p>
           <h1>Technical Decision Navigator</h1>
-          <p className="intro">Search and inspect the original knowledge behind technical decisions.</p>
+          <p className="intro">AI proposes. The system validates. Evidence remains inspectable.</p>
         </div>
         <button className="primary-button" type="button" onClick={startCreate}>New Knowledge Item</button>
       </header>
@@ -157,7 +159,7 @@ export function App() {
           <label htmlFor="question">Question</label>
           <div className="question-row"><input id="question" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Why was a global store avoided?" /><button className="primary-button" type="submit" disabled={asking}>{asking ? 'Retrieving…' : 'Ask'}</button></div>
         </form>
-        {answer && <div className="answer-block"><div className="answer-condition">{answer.evidenceCondition}</div><p className="answer-text">{answer.answer}</p>{answer.claims.map((claim) => <article className="claim-card" key={claim.id}><div className="claim-header"><strong>{claim.support}</strong><span>{claim.text}</span></div>{claim.reason && <p className="muted">{claim.reason}</p>}{claim.evidence.map((evidence) => <button className="answer-evidence" type="button" key={evidence.evidenceId} onClick={() => void selectItem(evidence.knowledgeItemId)}><span>Evidence {evidence.evidenceId}</span><p>{evidence.fragment}</p><small>{evidence.knowledgeItemTitle} · revision {evidence.revision} · {evidence.status} · {evidence.provenance}</small></button>)}</article>)}</div>}
+        {answer && <div className="answer-block"><div className="answer-condition">{isAbstention ? 'ABSTENTION' : answer.evidenceCondition}</div>{isAbstention ? <p className="answer-condition-note">The corpus did not provide sufficient evidence, so the system did not invent an answer.</p> : answer.evidenceCondition === 'CLEAR' && <p className="answer-condition-note">No evidence divergence detected in the retrieved corpus.</p>}<p className="answer-text">{answer.answer}</p>{answer.claims.map((claim) => <article className="claim-card" key={claim.id}><div className="claim-header"><strong>{claim.support}</strong><span>{claim.text}</span></div>{claim.reason && <p className="muted">{claim.reason}</p>}{claim.evidence.map((evidence) => <button className="answer-evidence" type="button" key={evidence.evidenceId} onClick={() => void selectItem(evidence.knowledgeItemId)}><span>Evidence {evidence.evidenceId}</span><p>{evidence.fragment}</p><small>{evidence.knowledgeItemTitle} · revision {evidence.revision} · {evidence.status} · {evidence.provenance}{evidence.sourceReference && ` · ${evidence.sourceReference}`}</small></button>)}</article>)}</div>}
       </section>
 
       <div className="workspace">
@@ -213,7 +215,7 @@ export function App() {
               <div className="metadata"><span className={`status status-${selected.status.toLowerCase()}`}>{selected.status}</span><span>revision {selected.revision}</span><span>{selected.provenance}</span>{selected.sourceReference && <span>{selected.sourceReference}</span>}</div>
               <p className="content-display">{selected.content}</p>
               <dl className="dates"><div><dt>Created</dt><dd>{formatDate(selected.createdAt)}</dd></div><div><dt>Updated</dt><dd>{formatDate(selected.updatedAt)}</dd></div></dl>
-              <div className="evidence-section"><h3>Evidence inspection</h3><p className="muted">Fragments returned by deterministic text search appear here. Each fragment is linked to the original Knowledge Item.</p>{context?.fragments.filter((fragment) => fragment.knowledgeItemId === selected.id).map((fragment) => <article className="evidence-card" key={fragment.evidenceId}><div className="evidence-label">Evidence {fragment.evidenceId}</div><p>{fragment.text}</p><small>paragraph {fragment.paragraphIndex + 1} · revision {fragment.itemRevision} · {fragment.status} · {fragment.provenance}</small></article>)}</div>
+              <div className="evidence-section"><h3>Evidence inspection</h3><p className="muted">Fragments returned by deterministic text search appear here. Each fragment is linked to the original Knowledge Item.</p>{context?.fragments.filter((fragment) => fragment.knowledgeItemId === selected.id).map((fragment) => <article className="evidence-card" key={fragment.evidenceId}><div className="evidence-label">Evidence {fragment.evidenceId}</div><p>{fragment.text}</p><small>paragraph {fragment.paragraphIndex + 1} · revision {fragment.itemRevision} · {fragment.status} · {fragment.provenance}{fragment.sourceReference && ` · ${fragment.sourceReference}`}</small></article>)}</div>
               <button className="danger-button" type="button" onClick={() => void removeSelected()}>Delete Knowledge Item</button>
             </>
           ) : (

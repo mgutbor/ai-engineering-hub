@@ -138,7 +138,7 @@ Cada caso debe conservar:
 
 ### Gates específicos
 
-- **Q1:** claims principales supported con KI-01/KI-02 cuando mantienen correspondencia textual directa; cualquier síntesis adicional se marca como inferred.
+- **Q1:** debe recuperar KI-01/KI-02; las claims directas pueden ser `SUPPORTED`, mientras que la síntesis interpretativa que se muestra en la demo de portfolio debe ser `INFERRED` con evidencia válida.
 - **Q2:** síntesis contextual; no regla universal.
 - **Q3:** hechos con correspondencia textual directa supported; síntesis general inferred.
 - **Q4:** principio general inferred.

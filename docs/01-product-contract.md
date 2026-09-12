@@ -789,7 +789,7 @@ El corpus y las preguntas deben considerarse congelados durante la evaluación.
 
 | Caso                                                      | Retrieval esperado             | Resultado obligatorio                                   |
 | --------------------------------------------------------- | ------------------------------ | ------------------------------------------------------- |
-| **Q1** — Por qué se evitó un global store                 | KI-01, KI-02                   | Respuesta directa; claims principales `SUPPORTED`       |
+| **Q1** — Por qué se evitó un global store                 | KI-01, KI-02                   | Evidencia disponible; las claims directas pueden ser `SUPPORTED` y la síntesis interpretativa `INFERRED` |
 | **Q2** — Problemas al coordinar estado                    | KI-01, KI-03, KI-04            | Síntesis contextual; no regla universal                 |
 | **Q3** — Validación de decisiones de estado y rendimiento | KI-08, KI-09                   | Hechos `SUPPORTED`; síntesis general `INFERRED`         |
 | **Q4** — Principio sobre centralización                   | KI-01 a KI-04                  | El principio general debe ser `INFERRED`                |
@@ -918,7 +918,7 @@ Quedan fuera del MVP:
 - knowledge graph;
 - clasificación automática general;
 - resolución automática de contradicciones;
-- múltiples proveedores de IA;
+- una arquitectura genérica multi-provider, provider registry, dynamic routing o provider management layer;
 - colaboración;
 - dashboards;
 - analytics;

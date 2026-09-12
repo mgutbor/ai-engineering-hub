@@ -11,7 +11,23 @@ describe('Slice B Q1-Q9 acceptance outcomes', () => {
     const database = createDatabase();
     const repository = new SqliteKnowledgeItemRepository(database);
     const retrieval = new SqliteRetrievalService(repository);
+    let synthesisInvocationCount = 0;
     const synthesis = new MockGroundedSynthesis((question, context) => {
+      synthesisInvocationCount += 1;
+      if (question.includes('global store avoided')) {
+        const fragment = context.fragments[0];
+        if (!fragment) throw new Error('Q1 requires retrieved evidence.');
+        return {
+          answer: 'The decision favored local state because most UI state was local and global indirection made ownership harder to understand.',
+          claims: [{
+            id: 'claim-1',
+            text: 'The decision favored local state because most UI state was local and global indirection made ownership harder to understand.',
+            proposedSupport: 'SUPPORTED',
+            evidenceIds: [fragment.evidenceId],
+            evidenceQuote: fragment.text,
+          }],
+        };
+      }
       if (question.includes('migrated from SSR to CSR')) {
         return {
           answer: 'The corpus does not document an SSR to CSR migration.',
@@ -39,7 +55,11 @@ describe('Slice B Q1-Q9 acceptance outcomes', () => {
     expect(evaluationQuestions).toHaveLength(9);
     const q1 = await service.ask(evaluationQuestions.find((question) => question.id === 'Q1')!.question, 'evaluation');
     expect(q1.ok).toBe(true);
-    if (q1.ok) expect(q1.response.claims[0]?.support).toBe('SUPPORTED');
+    if (q1.ok) {
+      expect(q1.response.claims[0]?.support).toBe('INFERRED');
+      expect(q1.response.claims[0]?.evidence.length).toBeGreaterThan(0);
+      expect(q1.response.claims[0]?.reason).toContain('deletion-only');
+    }
 
     const q5 = await service.ask(evaluationQuestions.find((question) => question.id === 'Q5')!.question, 'evaluation');
     expect(q5.ok).toBe(true);
@@ -57,8 +77,10 @@ describe('Slice B Q1-Q9 acceptance outcomes', () => {
     expect(q8.ok).toBe(true);
     if (q8.ok) expect(q8.response.claims[0]?.evidence[0]?.knowledgeItemId).toBe('KI-08');
 
+    const invocationCountBeforeQ9 = synthesisInvocationCount;
     const q9 = await service.ask(evaluationQuestions.find((question) => question.id === 'Q9')!.question, 'evaluation');
     expect(q9).toMatchObject({ ok: true, response: { claims: [{ support: 'INSUFFICIENT', evidence: [] }] } });
+    expect(synthesisInvocationCount).toBe(invocationCountBeforeQ9);
     closeDatabase(database);
   });
 });
